@@ -120,7 +120,7 @@ func (client *Client) Upload(path string, ch chan<- struct{}) error {
 		err = uploader.Upload()
 	}
 
-	log.Infof("[Resumable Upload]文件 %v 第%v上传成功，%v", path, n+1)
+	log.Infof("[Resumable Upload]文件 %v 第%v上传成功", path, n+1)
 
 	ch <- struct{}{}
 
