@@ -1,116 +1,119 @@
 package resume_upload
 
-// import (
-// 	"fmt"
-// 	"os"
-// 	"sync"
+import (
+	"fmt"
+	"os"
+	"strings"
+	"sync"
+	"time"
 
-// 	"github.com/eventials/go-tus"
-// 	"github.com/syndtr/goleveldb/leveldb"
-// )
+	"github.com/eventials/go-tus"
+	log "github.com/sirupsen/logrus"
+)
 
-// const (
-// 	TusLevelDBPath  = "./___tus___.upload.db"
-// 	TaskLevelDBPath = "./___ru___.task.db"
-// )
+const (
+	TusLevelDBPath = "./___tus___.upload.db"
+	MissMatch      = "mismatch"
+)
 
-// var (
-// 	client        *Client
-// 	once          sync.Once
-// 	leveldbClient *leveldb.Client
-// 	tusClient     *tus.Client
-// )
+type Client struct {
+	l       sync.Mutex
+	url     string
+	backoff Backoffer
+	c       *tus.Client
 
-// func init() {
-// 	var err error
-// 	leveldbClient, err = leveldb.OpenFile(TaskLevelDBPath, nil)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// }
+	// connected bool
+	// store     *leveldbstore.LeveldbStore
+}
 
-// type Client struct {
-// 	l         sync.Mutex
-// 	url       string
-// 	connected bool
-// 	// c         tus.Client
-// 	// store     *leveldbstore.LeveldbStore
-// }
+func init() {
+	customFormatter := new(log.TextFormatter)
+	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
+	log.SetFormatter(customFormatter)
+	customFormatter.FullTimestamp = true
+}
 
-// func GetClient(url string) (*Client, error) {
-// 	once.Do(func() {
-// 		// store, _ := leveldbstore.NewLeveldbStore(LevelDBPath)
-// 		// client, _ := tus.NewClient(url, &tus.Config{
-// 		// 	ChunkSize:           2 * 1024 * 1024,
-// 		// 	Resume:              true,
-// 		// 	OverridePatchMethod: false,
-// 		// 	Store:               store,
-// 		// 	Header:              make(http.Header),
-// 		// 	HttpClient:          nil,
-// 		// })
+func NewClient(url string, cfg *Config, backoff Backoffer) (*Client, error) {
+	var (
+		err error
+	)
 
-// 		// taskStore, _ := leveldb.OpenFile(TaskLevelDBPath, nil)
-// 		client = &Client{
-// 			url: url,
-// 			// store:     taskStore,
-// 			// c:         client,
-// 			connected: true,
-// 		}
+	if cfg == nil {
+		cfg, err = DefaultTusConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
 
-// 		client.StartBGTask()
-// 	})
+	tsuCfg := &tus.Config{
+		ChunkSize:           cfg.ChunkSize,
+		Resume:              cfg.Resume,
+		OverridePatchMethod: cfg.OverridePatchMethod,
+		Store:               cfg.Store,
+		Header:              cfg.Header,
+		HttpClient:          cfg.HttpClient,
+	}
 
-// 	return client, nil
-// }
+	client, err := tus.NewClient(url, tsuCfg)
+	if err != nil {
+		return nil, err
+	}
 
-// func (client *Cilent) SetConnected(val bool) {
-// 	client.l.Lock()
+	if backoff == nil {
+		backoff = DefaultBackoff
+	}
 
-// 	defer client.l.Unlock()
+	return &Client{
+		url:     url,
+		c:       client,
+		backoff: backoff,
+	}, nil
+}
 
-// 	client.connected = val
-// }
+func (client *Client) Upload(path string, ch chan<- struct{}) error {
+	if info, err := os.Stat(path); err != nil {
+		return fmt.Errorf("文件%v无法读取，%v", path, err)
+	} else if info.IsDir() {
+		return fmt.Errorf("上传的目标不能是文件夹，%v", path)
+	}
 
-// func (client *Client) StartBGTask() {
-// 	go func() {
-// 		for {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
 
-// 		}
-// 	}()
-// }
+	defer f.Close()
 
-// // 对于加入的任务，仅仅在leveldb上做个标记
-// // 然后由后台任务处理
-// func (client *Client) AddUpload(path string) error {
-// 	if info, err := os.Stat(path); err != nil {
-// 		return fmt.Errorf("文件%v无法读取，%v", err)
-// 	}
+	upload, err := tus.NewUploadFromFile(f)
+	if err != nil {
+		return err
+	}
 
-// 	// if client.connected {
-// 	// 	f, err := os.Open(path)
-// 	// 	if err != nil {
-// 	// 		return fmt.Errorf("文件%v无法读取，%v", err)
-// 	// 	}
+	uploader, err := client.c.CreateOrResumeUpload(upload)
+	if err != nil {
+		return err
+	}
 
-// 	// 	defer f.Close()
+	err = uploader.Upload()
+	n := 0
+	for err != nil {
+		log.Warnf("[Resumable Upload]文件 %v 第%v上传失败，%v", path, n+1, err)
+		if client.backoff != nil {
+			time.Sleep(client.backoff.Backoff(int(n)))
+		}
 
-// 	// 	upload, err := tus.NewUploadFromFile(f)
-// 	// 	if err != nil {
-// 	// 		panic(err)
-// 	// 	}
+		if strings.Contains(err.Error(), MissMatch) {
+			uploader, err = client.c.CreateOrResumeUpload(upload)
+		}
 
-// 	// 	uploader, err := client.CreateOrResumeUpload(upload)
-// 	// 	if err != nil {
-// 	// 		panic(err)
-// 	// 	}
+		n += 1
 
-// 	// 	err = uploader.Upload()
-// 	// 	if err != nil {
-// 	// 		client.store.Put([]byte(path), []byte("1"), nil)
-// 	// 	}
-// 	// } else {
-// 	levelDBClient().Put([]byte(path), []byte("1"), &leveldb.WriteOptions{
-// 		Sync: true,
-// 	})
-// 	// }
-// }
+		err = uploader.Upload()
+	}
+
+	log.Infof("[Resumable Upload]文件 %v 第%v上传成功", path, n+1)
+
+	ch <- struct{}{}
+
+	return nil
+}

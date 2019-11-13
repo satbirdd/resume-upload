@@ -1,7 +1,20 @@
-断点续传网络与任务管理
-client, err := GetClient("http://127.0.0.1:8080")
+断点续传客户端
+```
+client, err := resume_upload.NewClient("http://127.0.0.1:8084/files/", nil, nil)
 if err != nil {
 	panic(err)
 }
 
-client.AddUpload("./file.tar")
+done := make(chan struct{})
+go func() {
+	fp := "./file.rar"
+	err := client.Upload(fp, done)
+	if err != nil {
+		log.Printf("[Resumable Upload]upload file %v failed，%v", fp, err)
+	}
+	os.Exit(1)
+}()
+
+<-done
+fmt.Println("upload finished")
+```
