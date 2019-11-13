@@ -86,7 +86,7 @@ func (client *Client) Upload(path string, ch chan<- struct{}) error {
 		return fmt.Errorf("上传的目标不能是文件夹，%v", path)
 	}
 
-	f, err := os.Open(fmt.Sprintf("/home/liulei/Downloads/研发需求资料.rar"))
+	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
