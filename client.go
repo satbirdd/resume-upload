@@ -21,9 +21,6 @@ type Client struct {
 	url     string
 	backoff Backoffer
 	c       *tus.Client
-
-	// connected bool
-	// store     *leveldbstore.LeveldbStore
 }
 
 func init() {
