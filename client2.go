@@ -17,11 +17,6 @@ const (
 	MissMatch      = "mismatch"
 )
 
-var (
-	client    *Client
-	tusClient *tus.Client
-)
-
 type Client struct {
 	l       sync.Mutex
 	url     string
@@ -48,16 +43,7 @@ func DefaultTusConfig() (*tus.Config, error) {
 	}, nil
 }
 
-func GetClient(url string, cfg *tus.Config, backoff Backoffer) (*Client, error) {
-	// once.Do(func() {
-	// 	client = &Client{
-	// 		url: url,
-	// 		// connected: true,
-	// 	}
-
-	// 	// client.StartBGTask()
-	// })
-
+func NewClient(url string, cfg *tus.Config, backoff Backoffer) (*Client, error) {
 	var (
 		err error
 	)
@@ -85,7 +71,7 @@ func GetClient(url string, cfg *tus.Config, backoff Backoffer) (*Client, error) 
 	}, nil
 }
 
-func (client *Client) AddUpload(path string, ch chan<- struct{}) error {
+func (client *Client) Upload(path string, ch chan<- struct{}) error {
 	if info, err := os.Stat(path); err != nil {
 		return fmt.Errorf("文件%v无法读取，%v", path, err)
 	} else if info.IsDir() {
