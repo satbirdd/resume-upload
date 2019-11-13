@@ -87,7 +87,9 @@ func GetClient(url string, cfg *tus.Config, backoff Backoffer) (*Client, error) 
 
 func (client *Client) AddUpload(path string, ch chan<- struct{}) error {
 	if info, err := os.Stat(path); err != nil {
-		return fmt.Errorf("文件%v无法读取，%v", err)
+		return fmt.Errorf("文件%v无法读取，%v", path, err)
+	} else if info.IsDir() {
+		return fmt.Errorf("上传的目标不能是文件夹，%v", path)
 	}
 
 	f, err := os.Open(fmt.Sprintf("/home/liulei/Downloads/研发需求资料.rar"))
@@ -122,4 +124,6 @@ func (client *Client) AddUpload(path string, ch chan<- struct{}) error {
 	}
 
 	ch <- struct{}{}
+
+	return nil
 }
