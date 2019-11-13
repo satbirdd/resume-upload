@@ -10,6 +10,7 @@ import (
 
 	"github.com/eventials/go-tus"
 	"github.com/eventials/go-tus/leveldbstore"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -25,6 +26,13 @@ type Client struct {
 
 	// connected bool
 	// store     *leveldbstore.LeveldbStore
+}
+
+func init() {
+	customFormatter := new(log.TextFormatter)
+	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
+	log.SetFormatter(customFormatter)
+	customFormatter.FullTimestamp = true
 }
 
 func DefaultTusConfig() (*tus.Config, error) {
@@ -98,6 +106,7 @@ func (client *Client) Upload(path string, ch chan<- struct{}) error {
 	err = uploader.Upload()
 	n := 0
 	for err != nil {
+		log.Warn("[Resumable Upload]文件 %v 第%v上传失败，%v", path, n+1, err)
 		if client.backoff != nil {
 			time.Sleep(client.backoff.Backoff(int(n)))
 		}
@@ -106,8 +115,12 @@ func (client *Client) Upload(path string, ch chan<- struct{}) error {
 			uploader, err = client.c.CreateOrResumeUpload(upload)
 		}
 
+		n += 1
+
 		err = uploader.Upload()
 	}
+
+	log.Info("[Resumable Upload]文件 %v 第%v上传成功，%v", path, n+1)
 
 	ch <- struct{}{}
 
