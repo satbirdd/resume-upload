@@ -67,28 +67,28 @@ func NewClient(url string, cfg *Config, backoff Backoffer) (*Client, error) {
 	}, nil
 }
 
-func (client *Client) Upload(path string, ch chan<- struct{}) (map[string]string, error) {
+func (client *Client) Upload(path string, ch chan<- struct{}) (string, error) {
 	if info, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("文件%v无法读取，%v", path, err)
+		return "", fmt.Errorf("文件%v无法读取，%v", path, err)
 	} else if info.IsDir() {
-		return nil, fmt.Errorf("上传的目标不能是文件夹，%v", path)
+		return "", fmt.Errorf("上传的目标不能是文件夹，%v", path)
 	}
 
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	defer f.Close()
 
 	upload, err := tus.NewUploadFromFile(f)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	uploader, err := client.c.CreateOrResumeUpload(upload)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	err = uploader.Upload()
@@ -112,5 +112,5 @@ func (client *Client) Upload(path string, ch chan<- struct{}) (map[string]string
 
 	ch <- struct{}{}
 
-	return upload.Metadata, nil
+	return uploader.Url(), nil
 }
