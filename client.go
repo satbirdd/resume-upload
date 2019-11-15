@@ -92,25 +92,27 @@ func (client *Client) Upload(path string, ch chan<- struct{}) (string, error) {
 	}
 
 	err = uploader.Upload()
-	n := 0
-	for err != nil {
-		log.Warnf("[Resumable Upload]文件 %v 第%v次上传失败，%v", path, n+1, err)
-		if client.backoff != nil {
-			time.Sleep(client.backoff.Backoff(int(n)))
+	go func() {
+		n := 0
+		for err != nil {
+			log.Warnf("[Resumable Upload]文件 %v 第%v次上传失败，%v", path, n+1, err)
+			if client.backoff != nil {
+				time.Sleep(client.backoff.Backoff(int(n)))
+			}
+
+			if strings.Contains(err.Error(), MissMatch) {
+				uploader, err = client.c.CreateOrResumeUpload(upload)
+			}
+
+			n += 1
+
+			err = uploader.Upload()
 		}
 
-		if strings.Contains(err.Error(), MissMatch) {
-			uploader, err = client.c.CreateOrResumeUpload(upload)
-		}
+		log.Infof("[Resumable Upload]文件 %v 上传成功", path)
 
-		n += 1
-
-		err = uploader.Upload()
-	}
-
-	log.Infof("[Resumable Upload]文件 %v 上传成功", path)
-
-	ch <- struct{}{}
+		ch <- struct{}{}
+	}()
 
 	return uploader.Url(), nil
 }
