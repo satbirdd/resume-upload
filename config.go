@@ -1,10 +1,17 @@
 package resume_upload
 
 import (
-	"fmt"
 	"net/http"
+	"sync"
 
+	log "github.com/dsoprea/go-logging"
 	"github.com/eventials/go-tus/leveldbstore"
+)
+
+var (
+	config  *Config
+	once    sync.Once
+	initErr error
 )
 
 type Config struct {
@@ -24,17 +31,22 @@ type Config struct {
 }
 
 func DefaultTusConfig() (*Config, error) {
-	store, err := leveldbstore.NewLeveldbStore(TusLevelDBPath)
-	if err != nil {
-		return nil, fmt.Errorf("创建leveldb存储失败，%v", err)
-	}
+	once.Do(func() {
+		store, err := leveldbstore.NewLeveldbStore(TusLevelDBPath)
+		if err != nil {
+			initErr = log.Errorf("创建leveldb存储失败，%v", err)
+			return
+		}
 
-	return &Config{
-		ChunkSize:           2 * 1024 * 1024,
-		Resume:              true,
-		OverridePatchMethod: false,
-		Store:               store,
-		Header:              make(http.Header),
-		HttpClient:          nil,
-	}, nil
+		config = &Config{
+			ChunkSize:           2 * 1024 * 1024,
+			Resume:              true,
+			OverridePatchMethod: false,
+			Store:               store,
+			Header:              make(http.Header),
+			HttpClient:          nil,
+		}
+	})
+
+	return config, initErr
 }
