@@ -79,7 +79,8 @@ func (client *Client) Upload(path string, ch chan<- struct{}) (string, error) {
 		return "", err
 	}
 
-	defer f.Close()
+	// 在文件上传完之前不能关闭
+	// defer f.Close()
 
 	upload, err := tus.NewUploadFromFile(f)
 	if err != nil {
@@ -93,6 +94,8 @@ func (client *Client) Upload(path string, ch chan<- struct{}) (string, error) {
 
 	err = uploader.Upload()
 	go func() {
+		defer f.Close()
+
 		n := 0
 		for err != nil {
 			log.Warnf("[Resumable Upload]文件 %v 第%v次上传失败，%v", path, n+1, err)
