@@ -3,7 +3,6 @@ package resume_upload
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 const (
 	TusLevelDBPath = "./___tus___.upload.db"
 	MissMatch      = "mismatch"
+	NotFoundMath   = "code: 404"
 )
 
 type Client struct {
@@ -103,9 +103,10 @@ func (client *Client) Upload(path string, ch chan<- struct{}) (string, error) {
 				time.Sleep(client.backoff.Backoff(int(n)))
 			}
 
-			if strings.Contains(err.Error(), MissMatch) {
-				uploader, err = client.c.CreateOrResumeUpload(upload)
-			}
+			// 如果是offset不匹配，或者上传任务没有找到，就重建任务
+			// if strings.Contains(err.Error(), MissMatch) || strings.Contains(err.Error(), NotFoundMath) {
+			uploader, err = client.c.CreateOrResumeUpload(upload)
+			// }
 
 			n += 1
 
