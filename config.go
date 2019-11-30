@@ -52,22 +52,11 @@ func DefaultTusConfig() (*Config, error) {
 }
 
 func DefaultTusConfigWithHeader(header http.Header) (*Config, error) {
-	once.Do(func() {
-		store, err := leveldbstore.NewLeveldbStore(TusLevelDBPath)
-		if err != nil {
-			initErr = log.Errorf("创建leveldb存储失败，%v", err)
-			return
-		}
+	config, err := DefaultTusConfig()
 
-		config = &Config{
-			ChunkSize:           2 * 1024 * 1024,
-			Resume:              true,
-			OverridePatchMethod: false,
-			Store:               store,
-			Header:              header,
-			HttpClient:          nil,
-		}
-	})
+	if config != nil {
+		config.Header = header
+	}
 
-	return config, initErr
+	return config, err
 }
