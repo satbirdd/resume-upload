@@ -1,16 +1,18 @@
 package resume_upload
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 
-	log "github.com/dsoprea/go-logging"
+	"github.com/eventials/go-tus"
 	"github.com/eventials/go-tus/leveldbstore"
 )
 
 var (
-	config  *Config
+	// config  *Config
 	once    sync.Once
+	store   tus.Store
 	initErr error
 )
 
@@ -30,25 +32,30 @@ type Config struct {
 	HttpClient *http.Client
 }
 
-func DefaultTusConfig() (*Config, error) {
+func defaultStore() (tus.Store, error) {
 	once.Do(func() {
-		store, err := leveldbstore.NewLeveldbStore(TusLevelDBPath)
-		if err != nil {
-			initErr = log.Errorf("创建leveldb存储失败，%v", err)
-			return
-		}
-
-		config = &Config{
-			ChunkSize:           2 * 1024 * 1024,
-			Resume:              true,
-			OverridePatchMethod: false,
-			Store:               store,
-			Header:              make(http.Header),
-			HttpClient:          nil,
-		}
+		store, initErr = leveldbstore.NewLeveldbStore(TusLevelDBPath)
 	})
 
-	return config, initErr
+	return store, initErr
+}
+
+func DefaultTusConfig() (*Config, error) {
+	s, err := defaultStore()
+	if err != nil {
+		return nil, fmt.Errorf("创建leveldb存储失败，%v", err)
+	}
+
+	config := &Config{
+		ChunkSize:           2 * 1024 * 1024,
+		Resume:              true,
+		OverridePatchMethod: false,
+		Store:               s,
+		Header:              make(http.Header),
+		HttpClient:          nil,
+	}
+
+	return config, nil
 }
 
 func DefaultTusConfigWithHeader(header http.Header) (*Config, error) {

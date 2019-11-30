@@ -42,4 +42,17 @@ func TestDefaultConfigWithHeader(t *testing.T) {
 	if cfg.Header["Authorization"][0] != header["Authorization"][0] {
 		t.Fatal("Set DefaultTusConfigWithHeader failed")
 	}
+
+	cfg, err = DefaultTusConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg == nil {
+		t.Fatal("DefaultTusConfig is nill")
+	}
+
+	if len(cfg.Header["Authorization"]) != 0 {
+		t.Fatal("DefaultTusConfig has been changed")
+	}
 }
